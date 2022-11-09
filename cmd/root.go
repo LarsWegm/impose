@@ -24,6 +24,7 @@ package cmd
 import (
 	"os"
 
+	"git.larswegmann.de/lars/impose/composeparser"
 	"github.com/spf13/cobra"
 )
 
@@ -41,6 +42,8 @@ Example:
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
 }
+
+var parser *composeparser.Parser
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -61,4 +64,7 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
+	composeFile := rootCmd.PersistentFlags().StringP("file", "f", "docker-compose.yml", "Compose file")
+
 }

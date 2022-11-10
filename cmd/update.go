@@ -5,7 +5,10 @@ Copyright © 2022 Lars Wegmann
 package cmd
 
 import (
+	"fmt"
+
 	"git.larswegmann.de/lars/impose/composeparser"
+	"git.larswegmann.de/lars/impose/registry"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +23,16 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 		_, err = parser.GetImageVersions()
-		return err
+		if err != nil {
+			return err
+		}
+		r := registry.NewRegistry(registry.Config{})
+		tags, err := r.GetLatestVersion("library/mariadb", "10.5.13-jammy")
+		if err != nil {
+			return err
+		}
+		fmt.Println(tags)
+		return nil
 	},
 }
 

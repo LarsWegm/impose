@@ -3,7 +3,6 @@ package registry
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -94,7 +93,7 @@ func (r *registry) GetLatestVersion(image string, refVersion string) (string, er
 	})
 
 	if len(tags) < 1 {
-		return "", errors.New("could not find a valid version")
+		return "", fmt.Errorf("could not find a valid version for '%v:%v'", image, refVersion)
 	}
 	return tags[len(tags)-1], nil
 }

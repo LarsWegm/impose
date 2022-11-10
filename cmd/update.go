@@ -27,7 +27,7 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 		r := registry.NewRegistry(registry.Config{})
-		tags, err := r.GetLatestVersion("library/mariadb", "10.5.13-jammy")
+		tags, err := r.GetLatestVersion("library/mariadb", "v10.5.13-jammy")
 		if err != nil {
 			return err
 		}

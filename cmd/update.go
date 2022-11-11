@@ -25,11 +25,23 @@ var updateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		//parser.WriteToStdout()
-		return nil
+		out, err := cmd.Flags().GetString("out")
+		if err != nil {
+			return err
+		}
+		switch out {
+		case "":
+			err = parser.WriteToOriginalFile()
+		case "-":
+			err = parser.WriteToStdout()
+		default:
+			err = parser.WriteToFile(out)
+		}
+		return err
 	},
 }
 
 func init() {
+	updateCmd.Flags().StringP("out", "o", "", "The output file (default is the input file, if \"-\" is passed it writes to std out)")
 	rootCmd.AddCommand(updateCmd)
 }

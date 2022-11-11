@@ -6,20 +6,24 @@ import (
 	"os"
 	"strings"
 
+	"git.larswegmann.de/lars/impose/registry"
 	"gopkg.in/yaml.v3"
 )
 
 type parser struct {
-	file          string
-	yamlContent   yaml.Node
-	imageVerisons []*ImageVersion
+	file        string
+	yamlContent yaml.Node
+	services    []*Service
 }
 
-type ImageVersion struct {
-	Service   string
-	ImageName string
-	Version   string
-	yamlNode  *yaml.Node
+type Service struct {
+	Name  string
+	Image *Image
+}
+
+type Image struct {
+	*registry.Image
+	yamlNode *yaml.Node
 }
 
 func NewParser(file string) (*parser, error) {
@@ -31,15 +35,6 @@ func NewParser(file string) (*parser, error) {
 	err := p.loadFromFile(file)
 
 	return p, err
-}
-
-func (p *parser) GetImageVersions() ([]*ImageVersion, error) {
-	/*
-		for _, v := range p.imageVerisons {
-			fmt.Println(v)
-		}
-	*/
-	return p.imageVerisons, nil
 }
 
 func (p *parser) loadFromFile(file string) error {
@@ -69,11 +64,15 @@ func (p *parser) loadFromFile(file string) error {
 		if servicesNodeContentLen <= i+1 {
 			return errors.New("could not parese YAML: invalid services node content length")
 		}
-		imgVersion, err := getImageVersionFromNode(servicesNodeContent[i].Value, servicesNodeContent[i+1])
+		img, err := getImageFromNode(servicesNodeContent[i+1])
 		if err != nil {
 			return err
 		}
-		p.imageVerisons = append(p.imageVerisons, imgVersion)
+		service := &Service{
+			Name:  servicesNodeContent[i].Value,
+			Image: img,
+		}
+		p.services = append(p.services, service)
 	}
 	return nil
 }
@@ -89,32 +88,23 @@ func (p *parser) writeToFile() error {
 	return nil
 }
 
-func getImageVersionFromNode(serviceName string, node *yaml.Node) (*ImageVersion, error) {
-	imgVersion := &ImageVersion{
-		Service: serviceName,
-	}
-
-	imageNode, err := getNodeByKey(node, "image")
+func getImageFromNode(node *yaml.Node) (*Image, error) {
+	imgNode, err := getNodeByKey(node, "image")
 	if err != nil {
 		return nil, err
 	}
-	imgVersion.yamlNode = imageNode
 
-	imgVal := imageNode.Value
-	imgSlice := strings.Split(imgVal, ":")
-	imgSliceLen := len(imgSlice)
-
-	if imgSliceLen != 1 && imgSliceLen != 2 {
-		return nil, fmt.Errorf("image has invalid format: '%v'", imgVal)
+	imgFromStr, err := registry.NewImageFromString(imgNode.Value)
+	if err != nil {
+		return nil, err
 	}
 
-	imgVersion.ImageName = imgSlice[0]
-
-	if imgSliceLen > 1 {
-		imgVersion.Version = imgSlice[1]
+	img := &Image{
+		imgFromStr,
+		imgNode,
 	}
 
-	return imgVersion, nil
+	return img, nil
 }
 
 func getNodeByKey(node *yaml.Node, key string) (*yaml.Node, error) {

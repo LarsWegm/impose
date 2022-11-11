@@ -27,7 +27,11 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 		r := registry.NewRegistry(registry.Config{})
-		tags, err := r.GetLatestVersion("library/mariadb", "v10.5.13-jammy")
+		img, err := registry.NewImageFromString("library/mariadb:10.5.13-jammy")
+		if err != nil {
+			return err
+		}
+		tags, err := r.GetLatestVersion(img)
 		if err != nil {
 			return err
 		}

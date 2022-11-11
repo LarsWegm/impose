@@ -25,7 +25,7 @@ var updateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		parser.WriteToStdout()
+		//parser.WriteToStdout()
 		return nil
 	},
 }

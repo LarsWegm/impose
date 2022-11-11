@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"git.larswegmann.de/lars/impose/registry"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
 )
 
@@ -82,16 +83,21 @@ func (p *parser) loadFromFile(file string) error {
 	return nil
 }
 
-func (p *parser) UpdateVersions() (err error) {
-	for _, s := range p.services {
-		s.LatestImage, err = p.registry.GetLatestVersion(s.CurrentImage)
-		if err != nil {
+func (p *parser) UpdateVersions() error {
+	g := &errgroup.Group{}
+	for i := range p.services {
+		idx := i
+		g.Go(func() (err error) {
+			s := p.services[idx]
+			s.LatestImage, err = p.registry.GetLatestVersion(s.CurrentImage)
+			if err != nil {
+				return
+			}
+			s.imageNode.Value = s.LatestImage.String()
 			return
-		}
-		s.imageNode.Value = s.LatestImage.String()
-		fmt.Println(s.LatestImage.String())
+		})
 	}
-	return
+	return g.Wait()
 }
 
 func (p *parser) WriteToStdout() error {

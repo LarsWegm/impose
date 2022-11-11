@@ -15,7 +15,7 @@ type Config struct {
 	password string
 }
 
-type registry struct {
+type Registry struct {
 	registry   string
 	client     *http.Client
 	httpHeader http.Header
@@ -28,8 +28,8 @@ type tagResponse struct {
 	} `json:"results"`
 }
 
-func NewRegistry(cfg Config) *registry {
-	reg := &registry{
+func NewRegistry(cfg Config) *Registry {
+	reg := &Registry{
 		registry:   "https://hub.docker.com",
 		client:     &http.Client{},
 		httpHeader: http.Header{},
@@ -48,28 +48,28 @@ func NewRegistry(cfg Config) *registry {
 	return reg
 }
 
-func (r *registry) GetLatestVersion(image *Image) (string, error) {
+func (r *Registry) GetLatestVersion(image *Image) (*Image, error) {
 	req, err := http.NewRequest("GET", r.registry+"/v2/repositories/"+image.GetNormalizedName()+"/tags/?ordering=last_updated&page=1&page_size=100", nil) // 100 is the max page_size
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header = r.httpHeader
 	resp, err := r.client.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("registry http error: %v", resp.Status)
+		return nil, fmt.Errorf("registry http error: %v", resp.Status)
 	}
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var tagRes tagResponse
 	err = json.Unmarshal(bodyBytes, &tagRes)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var imgVersions []*Image
@@ -77,7 +77,7 @@ func (r *registry) GetLatestVersion(image *Image) (string, error) {
 		if !r.filterTags[t.Name] && image.MatchesScheme(t.Name) {
 			img, err := NewImageFromComponents(image.Name, t.Name)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			imgVersions = append(imgVersions, img)
 		}
@@ -88,8 +88,8 @@ func (r *registry) GetLatestVersion(image *Image) (string, error) {
 	})
 
 	if len(imgVersions) < 1 {
-		return "", fmt.Errorf("could not find a valid version for '%v'", image)
+		return nil, fmt.Errorf("could not find a valid version for '%v'", image)
 	}
 	highestImgVer := imgVersions[len(imgVersions)-1]
-	return highestImgVer.VersionStr, nil
+	return highestImgVer, nil
 }

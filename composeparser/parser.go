@@ -12,26 +12,26 @@ import (
 
 type parser struct {
 	file        string
+	registry    *registry.Registry
 	yamlContent yaml.Node
 	services    []*Service
 }
 
 type Service struct {
-	Name  string
-	Image *Image
+	Name         string
+	CurrentImage *registry.Image
+	imageNode    *yaml.Node
+	LatestImage  *registry.Image
 }
 
-type Image struct {
-	*registry.Image
-	yamlNode *yaml.Node
-}
-
-func NewParser(file string) (*parser, error) {
+func NewParser(file string, registry *registry.Registry) (*parser, error) {
 	if file == "" {
 		return nil, errors.New("file must be set")
 	}
 
-	p := &parser{}
+	p := &parser{
+		registry: registry,
+	}
 	err := p.loadFromFile(file)
 
 	return p, err
@@ -64,16 +64,42 @@ func (p *parser) loadFromFile(file string) error {
 		if servicesNodeContentLen <= i+1 {
 			return errors.New("could not parese YAML: invalid services node content length")
 		}
-		img, err := getImageFromNode(servicesNodeContent[i+1])
+		imgNode, err := getNodeByKey(servicesNodeContent[i+1], "image")
+		if err != nil {
+			return err
+		}
+		img, err := registry.NewImageFromString(imgNode.Value)
 		if err != nil {
 			return err
 		}
 		service := &Service{
-			Name:  servicesNodeContent[i].Value,
-			Image: img,
+			Name:         servicesNodeContent[i].Value,
+			CurrentImage: img,
+			imageNode:    imgNode,
 		}
 		p.services = append(p.services, service)
 	}
+	return nil
+}
+
+func (p *parser) UpdateVersions() (err error) {
+	for _, s := range p.services {
+		s.LatestImage, err = p.registry.GetLatestVersion(s.CurrentImage)
+		if err != nil {
+			return
+		}
+		s.imageNode.Value = s.LatestImage.String()
+		fmt.Println(s.LatestImage.String())
+	}
+	return
+}
+
+func (p *parser) WriteToStdout() error {
+	b, err := yaml.Marshal(&p.yamlContent)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(b))
 	return nil
 }
 
@@ -86,25 +112,6 @@ func (p *parser) writeToFile() error {
 	//os.WriteFile("out.yml", b, 0644)
 	//os.WriteFile(p.file, b, 0644)
 	return nil
-}
-
-func getImageFromNode(node *yaml.Node) (*Image, error) {
-	imgNode, err := getNodeByKey(node, "image")
-	if err != nil {
-		return nil, err
-	}
-
-	imgFromStr, err := registry.NewImageFromString(imgNode.Value)
-	if err != nil {
-		return nil, err
-	}
-
-	img := &Image{
-		imgFromStr,
-		imgNode,
-	}
-
-	return img, nil
 }
 
 func getNodeByKey(node *yaml.Node, key string) (*yaml.Node, error) {

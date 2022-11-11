@@ -105,19 +105,21 @@ func (p *parser) WriteToStdout() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(b))
-	return nil
+	_, err = fmt.Println(string(b))
+	return err
 }
 
-func (p *parser) writeToFile() error {
+func (p *parser) WriteToOriginalFile() error {
+	return p.WriteToFile(p.file)
+}
+
+func (p *parser) WriteToFile(file string) error {
 	b, err := yaml.Marshal(&p.yamlContent)
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(b))
-	//os.WriteFile("out.yml", b, 0644)
-	//os.WriteFile(p.file, b, 0644)
-	return nil
+	err = os.WriteFile(file, b, 0644)
+	return err
 }
 
 func getNodeByKey(node *yaml.Node, key string) (*yaml.Node, error) {

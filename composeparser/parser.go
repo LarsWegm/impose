@@ -20,8 +20,9 @@ type Parser struct {
 type Service struct {
 	Name         string
 	CurrentImage *registry.Image
-	imageNode    *yaml.Node
 	LatestImage  *registry.Image
+	imageNode    *yaml.Node
+	options      *serviceOptions
 }
 
 func NewParser(file string) (*Parser, error) {
@@ -51,7 +52,7 @@ func (p *Parser) loadFromFile(file string) error {
 		return errors.New("invalid YAML content")
 	}
 
-	servicesNode, err := getNodeByKey(p.yamlContent.Content[0], "services")
+	_, servicesNode, err := getNodeByKey(p.yamlContent.Content[0], "services")
 	if err != nil {
 		return err
 	}
@@ -62,7 +63,7 @@ func (p *Parser) loadFromFile(file string) error {
 		if servicesNodeContentLen <= i+1 {
 			return errors.New("could not parese YAML: invalid services node content length")
 		}
-		imgNode, err := getNodeByKey(servicesNodeContent[i+1], "image")
+		imgNodeKey, imgNode, err := getNodeByKey(servicesNodeContent[i+1], "image")
 		if err != nil {
 			return err
 		}
@@ -74,6 +75,7 @@ func (p *Parser) loadFromFile(file string) error {
 			Name:         servicesNodeContent[i].Value,
 			CurrentImage: img,
 			imageNode:    imgNode,
+			options:      newServiceOptions(imgNodeKey.HeadComment, imgNode.LineComment),
 		}
 		p.services = append(p.services, service)
 	}
@@ -86,6 +88,9 @@ func (p *Parser) UpdateVersions(reg *registry.Registry) error {
 		idx := i
 		g.Go(func() (err error) {
 			s := p.services[idx]
+			if s.options.ignore {
+				return
+			}
 			s.LatestImage, err = reg.GetLatestVersion(s.CurrentImage)
 			if err != nil {
 				return
@@ -119,15 +124,15 @@ func (p *Parser) WriteToFile(file string) error {
 	return err
 }
 
-func getNodeByKey(node *yaml.Node, key string) (*yaml.Node, error) {
+func getNodeByKey(node *yaml.Node, key string) (nodeKey *yaml.Node, nodeVal *yaml.Node, err error) {
 	nodeContent := node.Content
 	for i, n := range nodeContent {
 		if n.Value == key {
 			if len(nodeContent) <= i+1 {
-				return nil, errors.New("could not parese YAML: invalid node content length")
+				return nil, nil, errors.New("could not parese YAML: invalid node content length")
 			}
-			return nodeContent[i+1], nil
+			return nodeContent[i], nodeContent[i+1], nil
 		}
 	}
-	return nil, fmt.Errorf("no key '%v' found in YAML", key)
+	return nil, nil, fmt.Errorf("no key '%v' found in YAML", key)
 }

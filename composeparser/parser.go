@@ -91,7 +91,14 @@ func (p *Parser) UpdateVersions(reg *registry.Registry) error {
 			if s.options.ignore {
 				return
 			}
-			s.LatestImage, err = reg.GetLatestVersion(s.CurrentImage)
+			mode := registry.UPDATE_MAJOR
+			if s.options.onlyMinor {
+				mode = registry.UPDATE_MINOR
+			}
+			if s.options.onlyPatch {
+				mode = registry.UPDATE_PATCH
+			}
+			s.LatestImage, err = reg.GetLatestVersion(s.CurrentImage, mode)
 			if err != nil {
 				return
 			}

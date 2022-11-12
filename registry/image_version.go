@@ -17,6 +17,14 @@ type Image struct {
 	matcherFunc func(version string) bool
 }
 
+type UpdateMode int
+
+const (
+	UPDATE_MAJOR UpdateMode = iota
+	UPDATE_MINOR
+	UPDATE_PATCH
+)
+
 func NewImageFromString(str string) (*Image, error) {
 	name, version, _ := strings.Cut(str, ":")
 	return NewImageFromComponents(name, version)
@@ -50,7 +58,6 @@ func (i *Image) SetVersionFromStr(str string) {
 	if verSliceLen > 2 {
 		i.Patch, _ = strconv.Atoi(verSlice[2])
 	}
-	i.setVersionMatcher()
 }
 
 func (i *Image) GetNormalizedName() string {
@@ -88,6 +95,9 @@ func (i *Image) Less(comp *Image) bool {
 }
 
 func (i *Image) MatchesScheme(str string) bool {
+	if i.matcherFunc == nil {
+		i.SetVersionMatcher(UPDATE_MAJOR)
+	}
 	return i.matcherFunc(str)
 }
 
@@ -98,17 +108,28 @@ var reV3DigitsSuffix = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+.*$`)
 var reV2DigitsSuffix = regexp.MustCompile(`^v[0-9]+\.[0-9]+.*$`)
 var reV1DigitsSuffix = regexp.MustCompile(`^v[0-9]+.*$`)
 
-func (i *Image) setVersionMatcher() {
+func (i *Image) SetVersionMatcher(mode UpdateMode) {
+	major := strconv.Itoa(i.Major)
+	minor := strconv.Itoa(i.Minor)
+	matchVersion := ""
+	if mode == UPDATE_MINOR {
+		matchVersion = major
+	}
+	if mode == UPDATE_PATCH {
+		matchVersion = major + "." + minor
+	}
+	matchVersionV := "v" + matchVersion
+
 	if re3DigitsSuffix.MatchString(i.VersionStr) {
 		i.matcherFunc = func(version string) bool {
 			// strings.HasSuffix is too inaccurate, we need to compare the exact suffix
 			_, suffix, _ := strings.Cut(version, "-")
-			return re3DigitsSuffix.MatchString(version) && i.Suffix == suffix
+			return re3DigitsSuffix.MatchString(version) && strings.HasPrefix(version, matchVersion) && i.Suffix == suffix
 		}
 	} else if re2DigitsSuffix.MatchString(i.VersionStr) {
 		i.matcherFunc = func(version string) bool {
 			_, suffix, _ := strings.Cut(version, "-")
-			return re2DigitsSuffix.MatchString(version) && i.Suffix == suffix
+			return re2DigitsSuffix.MatchString(version) && strings.HasPrefix(version, matchVersion) && i.Suffix == suffix
 		}
 	} else if re1DigitSuffix.MatchString(i.VersionStr) {
 		i.matcherFunc = func(version string) bool {
@@ -118,12 +139,12 @@ func (i *Image) setVersionMatcher() {
 	} else if reV3DigitsSuffix.MatchString(i.VersionStr) {
 		i.matcherFunc = func(version string) bool {
 			_, suffix, _ := strings.Cut(version, "-")
-			return reV3DigitsSuffix.MatchString(version) && i.Suffix == suffix
+			return reV3DigitsSuffix.MatchString(version) && strings.HasPrefix(version, matchVersionV) && i.Suffix == suffix
 		}
 	} else if reV2DigitsSuffix.MatchString(i.VersionStr) {
 		i.matcherFunc = func(version string) bool {
 			_, suffix, _ := strings.Cut(version, "-")
-			return reV2DigitsSuffix.MatchString(version) && i.Suffix == suffix
+			return reV2DigitsSuffix.MatchString(version) && strings.HasPrefix(version, matchVersionV) && i.Suffix == suffix
 		}
 	} else if reV1DigitsSuffix.MatchString(i.VersionStr) {
 		i.matcherFunc = func(version string) bool {

@@ -48,7 +48,7 @@ func NewRegistry(cfg *Config) *Registry {
 	return reg
 }
 
-func (r *Registry) GetLatestVersion(image *Image) (*Image, error) {
+func (r *Registry) GetLatestVersion(image *Image, mode UpdateMode) (*Image, error) {
 	req, err := http.NewRequest("GET", r.registry+"/v2/repositories/"+image.GetNormalizedName()+"/tags/?ordering=last_updated&page=1&page_size=100", nil) // 100 is the max page_size
 	if err != nil {
 		return nil, err
@@ -73,6 +73,7 @@ func (r *Registry) GetLatestVersion(image *Image) (*Image, error) {
 	}
 
 	var imgVersions []*Image
+	image.SetVersionMatcher(mode)
 	for _, t := range tagRes.Results {
 		if !r.filterTags[t.Name] && image.MatchesScheme(t.Name) {
 			img, err := NewImageFromComponents(image.Name, t.Name)

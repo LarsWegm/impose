@@ -36,8 +36,15 @@ var rootCmd = &cobra.Command{
 This tool automatically scans the given Docker Compose
 file for image versions and updates them.
 
-Example:
-./impose update`,
+You can use head or inline comments for the image keyword in the Docker Compose file to add annotations.
+The following annotations are available:
+  impose:ignore     ignores the image for updates
+  impose:minor      only checks for minor version updates
+  impose:patch      only checks for patch version updates
+  impose:warnMajor  warns if major version has changed
+  impose:warnMinor  warns if minor version has changed (including major version changes)
+  impose:warnPatch  warns if patch version has changed (including major and minor version changes)
+  impose:warnAll    warns if the version string has changed in any way (including version suffix)`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },

@@ -133,10 +133,16 @@ func (p *Parser) WriteToFile(file string) error {
 
 func (p *Parser) PrintSummary() {
 	changed := []*Service{}
+	padChanged := 0
 	warnings := []*Service{}
+	padWarnings := 0
 
 	for _, s := range p.services {
 		if !s.options.ignore && !s.CurrentImage.IsSameVersion(s.LatestImage) {
+			padLen := len(s.CurrentImage.String())
+			if padChanged < padLen {
+				padChanged = padLen
+			}
 			changed = append(changed, s)
 		}
 	}
@@ -149,6 +155,10 @@ func (p *Parser) PrintSummary() {
 			s.options.warnMajor && s.MajorHasChanged() ||
 			s.options.warnMinor && s.MinorHasChanged() ||
 			s.options.warnPatch && s.PatchHasChanged() {
+			padLen := len(s.CurrentImage.String())
+			if padWarnings < padLen {
+				padWarnings = padLen
+			}
 			warnings = append(warnings, s)
 		}
 	}
@@ -156,13 +166,13 @@ func (p *Parser) PrintSummary() {
 	if len(changed) > 0 {
 		fmt.Println("Changed versions:")
 		for _, s := range changed {
-			fmt.Printf("  %v => %v\n", s.CurrentImage, s.LatestImage)
+			fmt.Printf("  %-*s => %s\n", padChanged, s.CurrentImage, s.LatestImage)
 		}
 		if len(warnings) > 0 {
 			fmt.Println()
 			fmt.Println("Warnings (requires attention):")
 			for _, s := range warnings {
-				fmt.Printf("  %v => %v\n", s.CurrentImage, s.LatestImage)
+				fmt.Printf("  %-*s => %s\n", padWarnings, s.CurrentImage, s.LatestImage)
 			}
 		}
 	} else {

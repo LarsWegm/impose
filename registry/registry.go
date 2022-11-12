@@ -10,9 +10,9 @@ import (
 )
 
 type Config struct {
-	registry string
-	user     string
-	password string
+	Registry string
+	User     string
+	Password string
 }
 
 type Registry struct {
@@ -28,7 +28,7 @@ type tagResponse struct {
 	} `json:"results"`
 }
 
-func NewRegistry(cfg Config) *Registry {
+func NewRegistry(cfg *Config) *Registry {
 	reg := &Registry{
 		registry:   "https://hub.docker.com",
 		client:     &http.Client{},
@@ -37,11 +37,11 @@ func NewRegistry(cfg Config) *Registry {
 			"latest": true,
 		},
 	}
-	if cfg.registry != "" {
-		reg.registry = cfg.registry
+	if cfg.Registry != "" {
+		reg.registry = cfg.Registry
 	}
-	if cfg.user != "" && cfg.password != "" {
-		basicAuth := base64.StdEncoding.EncodeToString([]byte(cfg.user + ":" + cfg.password))
+	if cfg.User != "" && cfg.Password != "" {
+		basicAuth := base64.StdEncoding.EncodeToString([]byte(cfg.User + ":" + cfg.Password))
 		reg.httpHeader.Add("Authorization", "Basic "+basicAuth)
 	}
 	reg.httpHeader.Add("Accept", "application/json")

@@ -24,6 +24,7 @@ package cmd
 import (
 	"os"
 
+	"git.larswegmann.de/lars/impose/composeparser"
 	"github.com/spf13/cobra"
 )
 
@@ -42,11 +43,12 @@ Example:
 	// Run: func(cmd *cobra.Command, args []string) { },
 }
 
-type Config struct {
-	FilePath *string
+type CliOptions struct {
+	InputFile  string
+	OutputFile string
 }
 
-var cfg *Config
+var opts *CliOptions
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -67,9 +69,19 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	opts = &CliOptions{}
+	rootCmd.PersistentFlags().StringVarP(&opts.InputFile, "file", "f", "docker-compose.yml", "Compose file")
+	rootCmd.PersistentFlags().StringVarP(&opts.OutputFile, "out", "o", "", "The output file (default is the input file, if \"-\" is passed it writes to std out)")
+}
 
-	composeFile := rootCmd.PersistentFlags().StringP("file", "f", "docker-compose.yml", "Compose file")
-	cfg = &Config{
-		FilePath: composeFile,
+func writeOutput(p *composeparser.Parser) (err error) {
+	switch opts.OutputFile {
+	case "":
+		err = p.WriteToOriginalFile()
+	case "-":
+		err = p.WriteToStdout()
+	default:
+		err = p.WriteToFile(opts.OutputFile)
 	}
+	return
 }

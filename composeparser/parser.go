@@ -11,9 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type parser struct {
+type Parser struct {
 	file        string
-	registry    *registry.Registry
 	yamlContent yaml.Node
 	services    []*Service
 }
@@ -25,20 +24,18 @@ type Service struct {
 	LatestImage  *registry.Image
 }
 
-func NewParser(file string, registry *registry.Registry) (*parser, error) {
+func NewParser(file string) (*Parser, error) {
 	if file == "" {
 		return nil, errors.New("file must be set")
 	}
 
-	p := &parser{
-		registry: registry,
-	}
+	p := &Parser{}
 	err := p.loadFromFile(file)
 
 	return p, err
 }
 
-func (p *parser) loadFromFile(file string) error {
+func (p *Parser) loadFromFile(file string) error {
 	p.file = file
 	yamlFile, err := os.ReadFile(p.file)
 	normLineEndings := strings.Replace(string(yamlFile), "\r\n", "\n", -1)
@@ -83,13 +80,13 @@ func (p *parser) loadFromFile(file string) error {
 	return nil
 }
 
-func (p *parser) UpdateVersions() error {
+func (p *Parser) UpdateVersions(reg *registry.Registry) error {
 	g := &errgroup.Group{}
 	for i := range p.services {
 		idx := i
 		g.Go(func() (err error) {
 			s := p.services[idx]
-			s.LatestImage, err = p.registry.GetLatestVersion(s.CurrentImage)
+			s.LatestImage, err = reg.GetLatestVersion(s.CurrentImage)
 			if err != nil {
 				return
 			}
@@ -100,7 +97,7 @@ func (p *parser) UpdateVersions() error {
 	return g.Wait()
 }
 
-func (p *parser) WriteToStdout() error {
+func (p *Parser) WriteToStdout() error {
 	b, err := yaml.Marshal(&p.yamlContent)
 	if err != nil {
 		return err
@@ -109,11 +106,11 @@ func (p *parser) WriteToStdout() error {
 	return err
 }
 
-func (p *parser) WriteToOriginalFile() error {
+func (p *Parser) WriteToOriginalFile() error {
 	return p.WriteToFile(p.file)
 }
 
-func (p *parser) WriteToFile(file string) error {
+func (p *Parser) WriteToFile(file string) error {
 	b, err := yaml.Marshal(&p.yamlContent)
 	if err != nil {
 		return err

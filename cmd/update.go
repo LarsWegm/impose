@@ -5,12 +5,15 @@ Copyright © 2022 Lars Wegmann
 package cmd
 
 import (
+	"fmt"
+
 	"git.larswegmann.de/lars/impose/composeparser"
 	"git.larswegmann.de/lars/impose/registry"
 	"github.com/spf13/cobra"
 )
 
 var regCfg *registry.Config
+var silent bool
 
 // updateCmd represents the update command
 var updateCmd = &cobra.Command{
@@ -27,6 +30,12 @@ var updateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if !silent {
+			parser.PrintSummary()
+			if opts.OutputFile == "-" {
+				fmt.Println()
+			}
+		}
 		return writeOutput(parser)
 	},
 }
@@ -38,4 +47,5 @@ func init() {
 	updateCmd.Flags().StringVarP(&regCfg.Registry, "registry", "r", "https://hub.docker.com", "Docker registry to use for version lookup")
 	updateCmd.Flags().StringVarP(&regCfg.User, "user", "u", "", "Docker registry user")
 	updateCmd.Flags().StringVarP(&regCfg.Password, "password", "p", "", "Docker registry password")
+	updateCmd.Flags().BoolVarP(&silent, "silent", "s", false, "Do not print summary")
 }

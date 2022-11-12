@@ -8,6 +8,10 @@ type serviceOptions struct {
 	ignore    bool
 	onlyMinor bool
 	onlyPatch bool
+	warnMajor bool
+	warnMinor bool
+	warnPatch bool
+	warnAll   bool
 }
 
 func newServiceOptions(headComment string, lineComment string) *serviceOptions {
@@ -17,6 +21,10 @@ func newServiceOptions(headComment string, lineComment string) *serviceOptions {
 		ignore:    containsOption(comment, "ignore"),
 		onlyMinor: containsOption(comment, "minor"),
 		onlyPatch: containsOption(comment, "patch"),
+		warnMajor: containsOption(comment, "warnMajor"),
+		warnMinor: containsOption(comment, "warnMinor"),
+		warnPatch: containsOption(comment, "warnPatch"),
+		warnAll:   containsOption(comment, "warnAll"),
 	}
 }
 

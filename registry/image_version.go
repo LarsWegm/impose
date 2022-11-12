@@ -94,6 +94,41 @@ func (i *Image) Less(comp *Image) bool {
 	return false
 }
 
+func (i *Image) Compare(comp *Image) bool {
+	if comp == nil {
+		return false
+	}
+	return i.GetNormalizedName() == comp.GetNormalizedName() && i.IsSameVersion(comp)
+}
+
+func (i *Image) IsSameVersion(comp *Image) bool {
+	if comp == nil {
+		return false
+	}
+	return i.VersionStr == comp.VersionStr
+}
+
+func (i *Image) IsSameMajor(comp *Image) bool {
+	if comp == nil {
+		return false
+	}
+	return i.Major == comp.Major
+}
+
+func (i *Image) IsSameMinor(comp *Image) bool {
+	if comp == nil {
+		return false
+	}
+	return i.IsSameMajor(comp) && i.Minor == comp.Minor
+}
+
+func (i *Image) IsSamePatch(comp *Image) bool {
+	if comp == nil {
+		return false
+	}
+	return i.IsSameMinor(comp) && i.Patch == comp.Patch
+}
+
 func (i *Image) MatchesScheme(str string) bool {
 	if i.matcherFunc == nil {
 		i.SetVersionMatcher(UPDATE_MAJOR)

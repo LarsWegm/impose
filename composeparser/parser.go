@@ -131,6 +131,73 @@ func (p *Parser) WriteToFile(file string) error {
 	return err
 }
 
+func (p *Parser) PrintSummary() {
+	changed := []*Service{}
+	warnings := []*Service{}
+
+	for _, s := range p.services {
+		if !s.options.ignore && !s.CurrentImage.IsSameVersion(s.LatestImage) {
+			changed = append(changed, s)
+		}
+	}
+
+	for _, s := range p.services {
+		if s.options.ignore {
+			continue
+		}
+		if s.options.warnAll && s.VersionHasChanged() ||
+			s.options.warnMajor && s.MajorHasChanged() ||
+			s.options.warnMinor && s.MinorHasChanged() ||
+			s.options.warnPatch && s.PatchHasChanged() {
+			warnings = append(warnings, s)
+		}
+	}
+
+	if len(changed) > 0 {
+		fmt.Println("Changed versions:")
+		for _, s := range changed {
+			fmt.Printf("  %v => %v\n", s.CurrentImage, s.LatestImage)
+		}
+		if len(warnings) > 0 {
+			fmt.Println()
+			fmt.Println("Warnings (requires attention):")
+			for _, s := range warnings {
+				fmt.Printf("  %v => %v\n", s.CurrentImage, s.LatestImage)
+			}
+		}
+	} else {
+		fmt.Println("No version changes")
+	}
+}
+
+func (s *Service) VersionHasChanged() bool {
+	if s.CurrentImage == nil || s.LatestImage == nil {
+		return false
+	}
+	return !s.CurrentImage.IsSameVersion(s.LatestImage)
+}
+
+func (s *Service) MajorHasChanged() bool {
+	if s.CurrentImage == nil || s.LatestImage == nil {
+		return false
+	}
+	return !s.CurrentImage.IsSameMajor(s.LatestImage)
+}
+
+func (s *Service) MinorHasChanged() bool {
+	if s.CurrentImage == nil || s.LatestImage == nil {
+		return false
+	}
+	return !s.CurrentImage.IsSameMinor(s.LatestImage)
+}
+
+func (s *Service) PatchHasChanged() bool {
+	if s.CurrentImage == nil || s.LatestImage == nil {
+		return false
+	}
+	return !s.CurrentImage.IsSamePatch(s.LatestImage)
+}
+
 func getNodeByKey(node *yaml.Node, key string) (nodeKey *yaml.Node, nodeVal *yaml.Node, err error) {
 	nodeContent := node.Content
 	for i, n := range nodeContent {

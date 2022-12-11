@@ -1,0 +1,8 @@
+version: '3'
+services:
+    my-service-1:
+        image: alpine:3.15.5
+    my-service-2:
+        image: custom/image:1.2.3
+    my-service-3:
+        image: mysql:8.0.0

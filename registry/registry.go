@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
 )
 
 type Config struct {
@@ -48,8 +47,8 @@ func NewRegistry(cfg *Config) *Registry {
 	return reg
 }
 
-func (r *Registry) GetLatestVersion(image *Image, mode UpdateMode) (*Image, error) {
-	req, err := http.NewRequest("GET", r.registry+"/v2/repositories/"+image.GetNormalizedName()+"/tags/?ordering=last_updated&page=1&page_size=100", nil) // 100 is the max page_size
+func (r *Registry) GetImageVersions(imageName string) ([]string, error) {
+	req, err := http.NewRequest("GET", r.registry+"/v2/repositories/"+imageName+"/tags/?ordering=last_updated&page=1&page_size=100", nil) // 100 is the max page_size
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +58,7 @@ func (r *Registry) GetLatestVersion(image *Image, mode UpdateMode) (*Image, erro
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("registry http error: %v", resp.Status)
+		return nil, fmt.Errorf("registry http error for '%v': %v", imageName, resp.Status)
 	}
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -72,25 +71,14 @@ func (r *Registry) GetLatestVersion(image *Image, mode UpdateMode) (*Image, erro
 		return nil, err
 	}
 
-	var imgVersions []*Image
-	image.SetVersionMatcher(mode)
+	var imgVersions []string
 	for _, t := range tagRes.Results {
-		if !r.filterTags[t.Name] && image.MatchesScheme(t.Name) {
-			img, err := NewImageFromComponents(image.Name, t.Name)
-			if err != nil {
-				return nil, err
-			}
-			imgVersions = append(imgVersions, img)
-		}
+		imgVersions = append(imgVersions, t.Name)
 	}
-
-	sort.Slice(imgVersions, func(i, j int) bool {
-		return imgVersions[i].Less(imgVersions[j])
-	})
 
 	if len(imgVersions) < 1 {
-		return nil, fmt.Errorf("could not find a valid version for '%v'", image)
+		return nil, fmt.Errorf("could not find a image versions for '%v'", imageName)
 	}
-	highestImgVer := imgVersions[len(imgVersions)-1]
-	return highestImgVer, nil
+
+	return imgVersions, nil
 }

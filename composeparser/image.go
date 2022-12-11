@@ -1,48 +1,59 @@
-package registry
+package composeparser
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
 
-type Image struct {
+type image struct {
 	Name        string
 	VersionStr  string
 	Major       int
 	Minor       int
 	Patch       int
 	Suffix      string
+	tagFilter   map[string]bool
 	matcherFunc func(version string) bool
 }
 
-type UpdateMode int
+type updateMode int
 
 const (
-	UPDATE_MAJOR UpdateMode = iota
-	UPDATE_MINOR
-	UPDATE_PATCH
+	updateMajor updateMode = iota
+	updateMinor
+	updatePatch
 )
 
-func NewImageFromString(str string) (*Image, error) {
-	name, version, _ := strings.Cut(str, ":")
-	return NewImageFromComponents(name, version)
+type registry interface {
+	GetImageVersions(imageName string) ([]string, error)
 }
 
-func NewImageFromComponents(name string, version string) (*Image, error) {
-	img := &Image{}
+func newImageFromString(str string) (*image, error) {
+	name, version, _ := strings.Cut(str, ":")
+	return newImageFromComponents(name, version)
+}
+
+func newImageFromComponents(name string, version string) (*image, error) {
+	img := &image{
+		tagFilter: map[string]bool{
+			"latest": true,
+		},
+	}
 	if name == "" {
 		return nil, errors.New("image name can not be empty")
 	}
 	img.Name = name
 	if version != "" {
-		img.SetVersionFromStr(version)
+		img.setVersionFromStr(version)
 	}
 	return img, nil
 }
 
-func (i *Image) SetVersionFromStr(str string) {
+func (i *image) setVersionFromStr(str string) {
 	i.VersionStr = str
 	version := strings.TrimPrefix(str, "v")
 	version, i.Suffix, _ = strings.Cut(version, "-")
@@ -60,14 +71,42 @@ func (i *Image) SetVersionFromStr(str string) {
 	}
 }
 
-func (i *Image) GetNormalizedName() string {
+func (i *image) getNormalizedName() string {
 	if len(strings.Split(i.Name, "/")) == 1 && i.Name != "" {
 		return "library/" + i.Name
 	}
 	return i.Name
 }
 
-func (i *Image) String() string {
+func (i *image) getLatestVersion(reg registry, mode updateMode) (*image, error) {
+	imageName := i.getNormalizedName()
+	imageVerisons, err := reg.GetImageVersions(imageName)
+	if err != nil {
+		return nil, err
+	}
+	var imgVersions []*image
+	i.SetVersionMatcher(mode)
+	for _, version := range imageVerisons {
+		if i.MatchesScheme(version) {
+			img, err := newImageFromComponents(i.Name, version)
+			if err != nil {
+				return nil, err
+			}
+			imgVersions = append(imgVersions, img)
+		}
+	}
+	sort.Slice(imgVersions, func(i, j int) bool {
+		return imgVersions[i].Less(imgVersions[j])
+	})
+
+	if len(imgVersions) < 1 {
+		return nil, fmt.Errorf("could not find a valid version for '%v'", i.String())
+	}
+	highestImgVer := imgVersions[len(imgVersions)-1]
+	return highestImgVer, nil
+}
+
+func (i *image) String() string {
 	str := i.Name
 	if i.VersionStr != "" {
 		str = str + ":" + i.VersionStr
@@ -75,7 +114,7 @@ func (i *Image) String() string {
 	return str
 }
 
-func (i *Image) Less(comp *Image) bool {
+func (i *image) Less(comp *image) bool {
 	if comp == nil {
 		return false
 	}
@@ -94,46 +133,46 @@ func (i *Image) Less(comp *Image) bool {
 	return false
 }
 
-func (i *Image) Compare(comp *Image) bool {
+func (i *image) Compare(comp *image) bool {
 	if comp == nil {
 		return false
 	}
-	return i.GetNormalizedName() == comp.GetNormalizedName() && i.IsSameVersion(comp)
+	return i.getNormalizedName() == comp.getNormalizedName() && i.IsSameVersion(comp)
 }
 
-func (i *Image) IsSameVersion(comp *Image) bool {
+func (i *image) IsSameVersion(comp *image) bool {
 	if comp == nil {
 		return false
 	}
 	return i.VersionStr == comp.VersionStr
 }
 
-func (i *Image) IsSameMajor(comp *Image) bool {
+func (i *image) IsSameMajor(comp *image) bool {
 	if comp == nil {
 		return false
 	}
 	return i.Major == comp.Major
 }
 
-func (i *Image) IsSameMinor(comp *Image) bool {
+func (i *image) IsSameMinor(comp *image) bool {
 	if comp == nil {
 		return false
 	}
 	return i.IsSameMajor(comp) && i.Minor == comp.Minor
 }
 
-func (i *Image) IsSamePatch(comp *Image) bool {
+func (i *image) IsSamePatch(comp *image) bool {
 	if comp == nil {
 		return false
 	}
 	return i.IsSameMinor(comp) && i.Patch == comp.Patch
 }
 
-func (i *Image) MatchesScheme(str string) bool {
+func (i *image) MatchesScheme(str string) bool {
 	if i.matcherFunc == nil {
-		i.SetVersionMatcher(UPDATE_MAJOR)
+		i.SetVersionMatcher(updateMajor)
 	}
-	return i.matcherFunc(str)
+	return !i.tagFilter[str] && i.matcherFunc(str)
 }
 
 var re3DigitsSuffix = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+.*$`)
@@ -143,14 +182,14 @@ var reV3DigitsSuffix = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+.*$`)
 var reV2DigitsSuffix = regexp.MustCompile(`^v[0-9]+\.[0-9]+.*$`)
 var reV1DigitsSuffix = regexp.MustCompile(`^v[0-9]+.*$`)
 
-func (i *Image) SetVersionMatcher(mode UpdateMode) {
+func (i *image) SetVersionMatcher(mode updateMode) {
 	major := strconv.Itoa(i.Major)
 	minor := strconv.Itoa(i.Minor)
 	matchVersion := ""
-	if mode == UPDATE_MINOR {
+	if mode == updateMinor {
 		matchVersion = major
 	}
-	if mode == UPDATE_PATCH {
+	if mode == updatePatch {
 		matchVersion = major + "." + minor
 	}
 	matchVersionV := "v" + matchVersion

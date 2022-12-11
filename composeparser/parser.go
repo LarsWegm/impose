@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"git.larswegmann.de/lars/impose/registry"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
 )
@@ -19,8 +18,8 @@ type Parser struct {
 
 type Service struct {
 	Name         string
-	CurrentImage *registry.Image
-	LatestImage  *registry.Image
+	CurrentImage *image
+	LatestImage  *image
 	imageNode    *yaml.Node
 	options      *serviceOptions
 }
@@ -36,53 +35,7 @@ func NewParser(file string) (*Parser, error) {
 	return p, err
 }
 
-func (p *Parser) loadFromFile(file string) error {
-	p.file = file
-	yamlFile, err := os.ReadFile(p.file)
-	normLineEndings := strings.Replace(string(yamlFile), "\r\n", "\n", -1)
-	if err != nil {
-		return err
-	}
-	err = yaml.Unmarshal([]byte(normLineEndings), &p.yamlContent)
-	if err != nil {
-		return err
-	}
-
-	if len(p.yamlContent.Content) < 1 {
-		return errors.New("invalid YAML content")
-	}
-
-	_, servicesNode, err := getNodeByKey(p.yamlContent.Content[0], "services")
-	if err != nil {
-		return err
-	}
-
-	servicesNodeContent := servicesNode.Content
-	servicesNodeContentLen := len(servicesNodeContent)
-	for i := 0; i < servicesNodeContentLen; i = i + 2 {
-		if servicesNodeContentLen <= i+1 {
-			return errors.New("could not parese YAML: invalid services node content length")
-		}
-		imgNodeKey, imgNode, err := getNodeByKey(servicesNodeContent[i+1], "image")
-		if err != nil {
-			return err
-		}
-		img, err := registry.NewImageFromString(imgNode.Value)
-		if err != nil {
-			return err
-		}
-		service := &Service{
-			Name:         servicesNodeContent[i].Value,
-			CurrentImage: img,
-			imageNode:    imgNode,
-			options:      newServiceOptions(imgNodeKey.HeadComment, imgNode.LineComment),
-		}
-		p.services = append(p.services, service)
-	}
-	return nil
-}
-
-func (p *Parser) UpdateVersions(reg *registry.Registry) error {
+func (p *Parser) UpdateVersions(reg registry) error {
 	g := &errgroup.Group{}
 	for i := range p.services {
 		idx := i
@@ -91,14 +44,14 @@ func (p *Parser) UpdateVersions(reg *registry.Registry) error {
 			if s.options.ignore {
 				return
 			}
-			mode := registry.UPDATE_MAJOR
+			mode := updateMajor
 			if s.options.onlyMinor {
-				mode = registry.UPDATE_MINOR
+				mode = updateMinor
 			}
 			if s.options.onlyPatch {
-				mode = registry.UPDATE_PATCH
+				mode = updatePatch
 			}
-			s.LatestImage, err = reg.GetLatestVersion(s.CurrentImage, mode)
+			s.LatestImage, err = s.CurrentImage.getLatestVersion(reg, mode)
 			if err != nil {
 				return
 			}
@@ -151,10 +104,10 @@ func (p *Parser) PrintSummary() {
 		if s.options.ignore {
 			continue
 		}
-		if s.options.warnAll && s.VersionHasChanged() ||
-			s.options.warnMajor && s.MajorHasChanged() ||
-			s.options.warnMinor && s.MinorHasChanged() ||
-			s.options.warnPatch && s.PatchHasChanged() {
+		if s.options.warnAll && s.versionHasChanged() ||
+			s.options.warnMajor && s.majorHasChanged() ||
+			s.options.warnMinor && s.minorHasChanged() ||
+			s.options.warnPatch && s.patchHasChanged() {
 			padLen := len(s.CurrentImage.String())
 			if padWarnings < padLen {
 				padWarnings = padLen
@@ -180,32 +133,78 @@ func (p *Parser) PrintSummary() {
 	}
 }
 
-func (s *Service) VersionHasChanged() bool {
+func (s *Service) versionHasChanged() bool {
 	if s.CurrentImage == nil || s.LatestImage == nil {
 		return false
 	}
 	return !s.CurrentImage.IsSameVersion(s.LatestImage)
 }
 
-func (s *Service) MajorHasChanged() bool {
+func (s *Service) majorHasChanged() bool {
 	if s.CurrentImage == nil || s.LatestImage == nil {
 		return false
 	}
 	return !s.CurrentImage.IsSameMajor(s.LatestImage)
 }
 
-func (s *Service) MinorHasChanged() bool {
+func (s *Service) minorHasChanged() bool {
 	if s.CurrentImage == nil || s.LatestImage == nil {
 		return false
 	}
 	return !s.CurrentImage.IsSameMinor(s.LatestImage)
 }
 
-func (s *Service) PatchHasChanged() bool {
+func (s *Service) patchHasChanged() bool {
 	if s.CurrentImage == nil || s.LatestImage == nil {
 		return false
 	}
 	return !s.CurrentImage.IsSamePatch(s.LatestImage)
+}
+
+func (p *Parser) loadFromFile(file string) error {
+	p.file = file
+	yamlFile, err := os.ReadFile(p.file)
+	normLineEndings := strings.Replace(string(yamlFile), "\r\n", "\n", -1)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal([]byte(normLineEndings), &p.yamlContent)
+	if err != nil {
+		return err
+	}
+
+	if len(p.yamlContent.Content) < 1 {
+		return errors.New("invalid YAML content")
+	}
+
+	_, servicesNode, err := getNodeByKey(p.yamlContent.Content[0], "services")
+	if err != nil {
+		return err
+	}
+
+	servicesNodeContent := servicesNode.Content
+	servicesNodeContentLen := len(servicesNodeContent)
+	for i := 0; i < servicesNodeContentLen; i = i + 2 {
+		if servicesNodeContentLen <= i+1 {
+			return errors.New("could not parese YAML: invalid services node content length")
+		}
+		imgNodeKey, imgNode, err := getNodeByKey(servicesNodeContent[i+1], "image")
+		if err != nil {
+			return err
+		}
+		img, err := newImageFromString(imgNode.Value)
+		if err != nil {
+			return err
+		}
+		service := &Service{
+			Name:         servicesNodeContent[i].Value,
+			CurrentImage: img,
+			imageNode:    imgNode,
+			options:      newServiceOptions(imgNodeKey.HeadComment, imgNode.LineComment),
+		}
+		p.services = append(p.services, service)
+	}
+	return nil
 }
 
 func getNodeByKey(node *yaml.Node, key string) (nodeKey *yaml.Node, nodeVal *yaml.Node, err error) {

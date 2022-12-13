@@ -266,7 +266,7 @@ func TestOptions(t *testing.T) {
 			}
 			actual := make(map[string]serviceOptions)
 			for _, s := range parser.services {
-				actual[s.Name] = *s.options
+				actual[s.name] = *s.options
 			}
 			if !reflect.DeepEqual(tt.expected, actual) {
 				t.Errorf("expected %+v, got %+v", tt.expected, actual)
@@ -275,7 +275,7 @@ func TestOptions(t *testing.T) {
 	}
 }
 
-func getYamlStr(t *testing.T, p *Parser) string {
+func getYamlStr(t *testing.T, p *parser) string {
 	b, err := yaml.Marshal(&p.yamlContent)
 	if err != nil {
 		t.Fatal(err)

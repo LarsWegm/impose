@@ -24,7 +24,6 @@ package cmd
 import (
 	"os"
 
-	"git.larswegmann.de/lars/impose/composeparser"
 	"github.com/spf13/cobra"
 )
 
@@ -55,6 +54,12 @@ type CliOptions struct {
 	OutputFile string
 }
 
+type writer interface {
+	WriteToOriginalFile() error
+	WriteToStdout() error
+	WriteToFile(file string) error
+}
+
 var opts *CliOptions
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -81,14 +86,14 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&opts.OutputFile, "out", "o", "", "The output file (default is the input file, if \"-\" is passed it writes to std out)")
 }
 
-func writeOutput(p *composeparser.Parser) (err error) {
+func writeOutput(w writer) (err error) {
 	switch opts.OutputFile {
 	case "":
-		err = p.WriteToOriginalFile()
+		err = w.WriteToOriginalFile()
 	case "-":
-		err = p.WriteToStdout()
+		err = w.WriteToStdout()
 	default:
-		err = p.WriteToFile(opts.OutputFile)
+		err = w.WriteToFile(opts.OutputFile)
 	}
 	return
 }

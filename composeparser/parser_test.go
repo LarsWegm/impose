@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -132,7 +133,12 @@ func TestOptions(t *testing.T) {
 	}{
 		{
 			"ignore in head comment",
-			"fixtures/options/ignore/head.yml",
+			`version: '3'
+services:
+    my-service:
+        # impose:ignore
+        image: alpine:3.15.5
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					ignore: true,
@@ -141,7 +147,11 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"ignore in inline comment",
-			"fixtures/options/ignore/inline.yml",
+			`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5 # impose:ignore
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					ignore: true,
@@ -150,7 +160,12 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"minor in head comment",
-			"fixtures/options/minor/head.yml",
+			`version: '3'
+services:
+    my-service:
+        # impose:minor
+        image: alpine:3.15.5
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					onlyMinor: true,
@@ -159,7 +174,11 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"minor in inline comment",
-			"fixtures/options/minor/inline.yml",
+			`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5 # impose:minor
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					onlyMinor: true,
@@ -168,7 +187,12 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"patch in head comment",
-			"fixtures/options/patch/head.yml",
+			`version: '3'
+services:
+    my-service:
+        # impose:patch
+        image: alpine:3.15.5
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					onlyPatch: true,
@@ -177,7 +201,11 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"patch in inline comment",
-			"fixtures/options/patch/inline.yml",
+			`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5 # impose:patch
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					onlyPatch: true,
@@ -186,7 +214,12 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"warnAll in head comment",
-			"fixtures/options/warnAll/head.yml",
+			`version: '3'
+services:
+    my-service:
+        # impose:warnAll
+        image: alpine:3.15.5
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					warnAll: true,
@@ -195,7 +228,11 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"warnAll in inline comment",
-			"fixtures/options/warnAll/inline.yml",
+			`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5 # impose:warnAll
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					warnAll: true,
@@ -204,7 +241,12 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"warnMajor in head comment",
-			"fixtures/options/warnMajor/head.yml",
+			`version: '3'
+services:
+    my-service:
+        # impose:warnMajor
+        image: alpine:3.15.5
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					warnMajor: true,
@@ -213,7 +255,11 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"warnMajor in inline comment",
-			"fixtures/options/warnMajor/inline.yml",
+			`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5 # impose:warnMajor
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					warnMajor: true,
@@ -222,7 +268,12 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"warnMinor in head comment",
-			"fixtures/options/warnMinor/head.yml",
+			`version: '3'
+services:
+    my-service:
+        # impose:warnMinor
+        image: alpine:3.15.5
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					warnMinor: true,
@@ -231,7 +282,11 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"warnMinor in inline comment",
-			"fixtures/options/warnMinor/inline.yml",
+			`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5 # impose:warnMinor
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					warnMinor: true,
@@ -240,7 +295,12 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"warnPatch in head comment",
-			"fixtures/options/warnPatch/head.yml",
+			`version: '3'
+services:
+    my-service:
+        # impose:warnPatch
+        image: alpine:3.15.5
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					warnPatch: true,
@@ -249,7 +309,11 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			"warnPatch in inline comment",
-			"fixtures/options/warnPatch/inline.yml",
+			`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5 # impose:warnPatch
+`,
 			map[string]serviceOptions{
 				"my-service": {
 					warnPatch: true,
@@ -260,12 +324,14 @@ func TestOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parser, err := NewParser(tt.file)
+			r := strings.NewReader(tt.file)
+			p := parser{}
+			err := p.parse(r)
 			if err != nil {
 				t.Fatal(err)
 			}
 			actual := make(map[string]serviceOptions)
-			for _, s := range parser.services {
+			for _, s := range p.services {
 				actual[s.name] = *s.options
 			}
 			if !reflect.DeepEqual(tt.expected, actual) {

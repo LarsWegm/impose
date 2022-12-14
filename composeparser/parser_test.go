@@ -3,6 +3,7 @@ package composeparser
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,8 +11,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestNormalFile(t *testing.T) {
-	parser, err := NewParser("fixtures/one-service/docker-compose.yml")
+func TestValidFile(t *testing.T) {
+	_, err := NewParser("fixtures/docker-compose.valid.yml")
+
+	if err != nil {
+		t.Errorf("expected no error, got '%v'", err)
+	}
+}
+
+func TestNoFileSet(t *testing.T) {
+	_, err := NewParser("")
+
+	if err == nil {
+		t.Error("expected error when no file given")
+	}
+}
+
+func TestValidYaml(t *testing.T) {
+	parser, err := parserFromStr(`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5
+`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,23 +45,19 @@ func TestNormalFile(t *testing.T) {
 
 }
 
-func TestNoFileSet(t *testing.T) {
-	_, err := NewParser("")
-
-	if err == nil {
-		t.Error("expected error when no file given")
-	}
-}
-
-func TestInvalidFile(t *testing.T) {
-	_, err := NewParser("fixtures/invalid-file/docker-compose.yml")
+func TestInvalidYaml(t *testing.T) {
+	_, err := parserFromStr("invalid")
 	if err == nil {
 		t.Error("expected error when invalid file given")
 	}
 }
 
 func TestStdout(t *testing.T) {
-	parser, err := NewParser("fixtures/one-service/docker-compose.yml")
+	parser, err := parserFromStr(`version: '3'
+services:
+    my-service:
+        image: alpine:3.15.5
+`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +99,12 @@ services:
 //
 // Therfore we normalize CRLF to LF before unmarshalling to get rid of the problem.
 func TestNormalizeCRLF(t *testing.T) {
-	parser, err := NewParser("fixtures/cr-lf-with-comments/docker-compose.yml")
+	parser, err := parserFromStr("version: '3'\r\n" +
+		"services:\r\n" +
+		"    my-service:\r\n" +
+		"        # This is a multi\r\n" +
+		"        # line comment\r\n" +
+		"        image: alpine:3.15.5\r\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +124,15 @@ services:
 }
 
 func TestImageUpdate(t *testing.T) {
-	parser, err := NewParser("fixtures/multiple-services/docker-compose.yml")
+	parser, err := parserFromStr(`version: '3'
+services:
+    my-service-1:
+        image: alpine:0.1.0
+    my-service-2:
+        image: custom/image:0.1.0
+    my-service-3:
+        image: mysql:0.1.0
+`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,9 +354,7 @@ services:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := strings.NewReader(tt.file)
-			p := parser{}
-			err := p.parse(r)
+			p, err := parserFromStr(tt.file)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -341,8 +369,50 @@ services:
 	}
 }
 
+func TestWriteToFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "docker-compose.yml")
+	data := "test\n"
+
+	p := &parser{}
+	err := yaml.Unmarshal([]byte(data), &p.yamlContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = p.WriteToFile(filePath)
+	if err != nil {
+		t.Fatalf("expected no error, got '%v'", err)
+	}
+
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual := string(b)
+
+	if data != actual {
+		t.Errorf("expected '%v', got '%v'", data, actual)
+	}
+}
+
+func TestWriteToOriginalFileWithNoFileSet(t *testing.T) {
+	p := &parser{}
+	err := p.WriteToOriginalFile()
+	if err == nil {
+		t.Errorf("expected error")
+	}
+}
+
+func parserFromStr(s string) (p *parser, err error) {
+	r := strings.NewReader(s)
+	p = &parser{}
+	err = p.parse(r)
+	return
+}
+
 func getYamlStr(t *testing.T, p *parser) string {
-	b, err := yaml.Marshal(&p.yamlContent)
+	b, err := p.marshalYaml()
 	if err != nil {
 		t.Fatal(err)
 	}

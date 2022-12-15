@@ -54,6 +54,272 @@ func TestNewImageFromString_WithoutVersion(t *testing.T) {
 	assertVersionParts(t, i, expected)
 }
 
+func TestNewImageFromComponents_WithoutName(t *testing.T) {
+	_, err := newImageFromComponents("", "1.0.0")
+	if err == nil {
+		t.Errorf("expected error")
+	}
+}
+
+func TestSetVersionFromStr(t *testing.T) {
+	tests := []struct {
+		name       string
+		versionStr string
+		expected   *versionParts
+	}{
+		{
+			"semantic version",
+			"1.2.3",
+			&versionParts{
+				Major:      1,
+				Minor:      2,
+				Patch:      3,
+				Name:       "",
+				Suffix:     "",
+				VersionStr: "1.2.3",
+			},
+		},
+		{
+			"v prefix",
+			"v1.2.3",
+			&versionParts{
+				Major:      1,
+				Minor:      2,
+				Patch:      3,
+				Name:       "",
+				Suffix:     "",
+				VersionStr: "v1.2.3",
+			},
+		},
+		{
+			"suffix",
+			"v1.2.3-suffix",
+			&versionParts{
+				Major:      1,
+				Minor:      2,
+				Patch:      3,
+				Name:       "",
+				Suffix:     "suffix",
+				VersionStr: "v1.2.3-suffix",
+			},
+		},
+		{
+			"invalid version",
+			"invalid",
+			&versionParts{
+				Major:      0,
+				Minor:      0,
+				Patch:      0,
+				Name:       "",
+				Suffix:     "",
+				VersionStr: "invalid",
+			},
+		},
+		{
+			"invalid major version",
+			"invalid1.2.3",
+			&versionParts{
+				Major:      0,
+				Minor:      2,
+				Patch:      3,
+				Name:       "",
+				Suffix:     "",
+				VersionStr: "invalid1.2.3",
+			},
+		},
+		{
+			"invalid minor",
+			"1.invalid.3",
+			&versionParts{
+				Major:      1,
+				Minor:      0,
+				Patch:      3,
+				Name:       "",
+				Suffix:     "",
+				VersionStr: "1.invalid.3",
+			},
+		},
+		{
+			"parse only up to patch version",
+			"v1.2.3.4-suffix",
+			&versionParts{
+				Major:      1,
+				Minor:      2,
+				Patch:      3,
+				Name:       "",
+				Suffix:     "suffix",
+				VersionStr: "v1.2.3.4-suffix",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i := &image{}
+			i.setVersionFromStr(tt.versionStr)
+			assertVersionParts(t, i, tt.expected)
+		})
+	}
+}
+
+func TestGetNormalizedName(t *testing.T) {
+	tests := []struct {
+		name      string
+		imageName string
+		expected  string
+	}{
+		{
+			"image with user and repo",
+			"some/image",
+			"some/image",
+		},
+		{
+			"image with only repo (official image)",
+			"image",
+			"library/image",
+		},
+		{
+			"image with 'library' as user part (official image)",
+			"library/image",
+			"library/image",
+		},
+		{
+			"many parts",
+			"too/many/parts",
+			"too/many/parts",
+		},
+		{
+			"empty image name",
+			"",
+			"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i := &image{
+				Name: tt.imageName,
+			}
+			normImgName := i.getNormalizedName()
+			if tt.expected != normImgName {
+				t.Errorf("expected '%v', got '%v'", tt.expected, normImgName)
+			}
+		})
+	}
+
+}
+
+func TestLess(t *testing.T) {
+	tests := []struct {
+		name   string
+		a      *image
+		b      *image
+		isLess bool
+	}{
+		{
+			"major is less",
+			&image{
+				Major:  1,
+				Minor:  9,
+				Patch:  9,
+				Suffix: "",
+			},
+			&image{
+				Major:  2,
+				Minor:  0,
+				Patch:  0,
+				Suffix: "",
+			},
+			true,
+		},
+		{
+			"minor is less",
+			&image{
+				Major:  1,
+				Minor:  0,
+				Patch:  9,
+				Suffix: "",
+			},
+			&image{
+				Major:  1,
+				Minor:  1,
+				Patch:  0,
+				Suffix: "",
+			},
+			true,
+		},
+		{
+			"patch is less",
+			&image{
+				Major:  1,
+				Minor:  1,
+				Patch:  0,
+				Suffix: "",
+			},
+			&image{
+				Major:  1,
+				Minor:  1,
+				Patch:  2,
+				Suffix: "",
+			},
+			true,
+		},
+		{
+			"suffix is less",
+			&image{
+				Major:  1,
+				Minor:  0,
+				Patch:  0,
+				Suffix: "suffix-0",
+			},
+			&image{
+				Major:  1,
+				Minor:  0,
+				Patch:  0,
+				Suffix: "suffix-1",
+			},
+			true,
+		},
+		{
+			"equal",
+			&image{
+				Major:  1,
+				Minor:  0,
+				Patch:  0,
+				Suffix: "",
+			},
+			&image{
+				Major:  1,
+				Minor:  0,
+				Patch:  0,
+				Suffix: "",
+			},
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expected := tt.isLess
+			actual := tt.a.Less(tt.b)
+			if expected != actual {
+				t.Errorf("\nexpected the 'less' comparison between\n"+
+					"  Major: %v\n"+
+					"  Minor: %v\n"+
+					"  Patch: %v\n"+
+					"  Suffix: %v\n"+
+					"and\n"+
+					"  Major: %v\n"+
+					"  Minor: %v\n"+
+					"  Patch: %v\n"+
+					"  Suffix: %v\n"+
+					"to be '%v', but got '%v'\n",
+					tt.a.Major, tt.a.Minor, tt.a.Patch, tt.a.Suffix,
+					tt.b.Major, tt.b.Minor, tt.b.Patch, tt.b.Suffix,
+					expected, actual)
+			}
+		})
+	}
+
+}
+
 func assertVersionParts(t *testing.T, i *image, p *versionParts) {
 	if i.Major != p.Major ||
 		i.Minor != p.Minor ||

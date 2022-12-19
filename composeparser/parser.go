@@ -60,7 +60,7 @@ func (p *parser) UpdateVersions(reg registry) error {
 			if s.options.onlyPatch {
 				mode = updatePatch
 			}
-			s.latestImage, err = s.currentImage.getLatestVersion(reg, mode)
+			s.latestImage, err = s.currentImage.GetLatestVersion(reg, mode)
 			if err != nil {
 				return
 			}

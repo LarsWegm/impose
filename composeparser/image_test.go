@@ -1,6 +1,8 @@
 package composeparser
 
-import "testing"
+import (
+	"testing"
+)
 
 type registryMock struct {
 	getImageVersionsFn func(imageName string) ([]string, error)
@@ -318,6 +320,120 @@ func TestLess(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetLatestVersion(t *testing.T) {
+	tests := []struct {
+		name        string
+		imageStr    string
+		updateMode  updateMode
+		regVersions []string
+		assert      func(t *testing.T, latestImg *image, err error)
+	}{
+		{
+			"mode updateMajor with matching version",
+			"some/image:1.0.0",
+			updateMajor,
+			[]string{
+				"2.0.0",
+			},
+			func(t *testing.T, latestImg *image, err error) {
+				expectVersion(t, latestImg, err, "some/image:2.0.0")
+			},
+		},
+		{
+			"mode updateMinor with matching version",
+			"some/image:1.0.0",
+			updateMinor,
+			[]string{
+				"1.1.0",
+			},
+			func(t *testing.T, latestImg *image, err error) {
+				expectVersion(t, latestImg, err, "some/image:1.1.0")
+			},
+		},
+		{
+			"mode updateMajor with matching version",
+			"some/image:1.0.0",
+			updatePatch,
+			[]string{
+				"1.0.1",
+			},
+			func(t *testing.T, latestImg *image, err error) {
+				expectVersion(t, latestImg, err, "some/image:1.0.1")
+			},
+		},
+		{
+			"mode updateMajor with no matching version",
+			"some/image:1.0.0",
+			updateMinor,
+			[]string{
+				"nomatch",
+			},
+			expectError,
+		},
+		{
+			"mode updateMinor with no matching version",
+			"some/image:1.0.0",
+			updateMinor,
+			[]string{
+				"2.0.0",
+			},
+			expectError,
+		},
+		{
+			"mode updatePatch with no matching version",
+			"some/image:1.0.0",
+			updateMinor,
+			[]string{
+				"2.0.0",
+			},
+			expectError,
+		},
+	}
+	reg := &registryMock{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			img, err := newImageFromString(tt.imageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			reg.getImageVersionsFn = func(imageName string) ([]string, error) {
+				return tt.regVersions, nil
+			}
+			// actual test
+			latestImg, err := img.GetLatestVersion(reg, tt.updateMode)
+			tt.assert(t, latestImg, err)
+		})
+	}
+}
+
+func expectVersion(t *testing.T, latestImg *image, err error, expected string) {
+	if err != nil {
+		t.Fatalf("expected no error, got '%v'", err)
+	}
+	if latestImg == nil {
+		t.Fatal("expected latest image to be not nil")
+	}
+	actual := latestImg.String()
+	if expected != actual {
+		t.Errorf("expected '%v', got '%v'", expected, actual)
+	}
+}
+
+func expectError(t *testing.T, latestImg *image, err error) {
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestGetLatestVersion_EmptyStruct(t *testing.T) {
+	reg := &registryMock{}
+	i := &image{}
+	_, err := i.GetLatestVersion(reg, updateMajor)
+	if err == nil {
+		t.Errorf("expected error")
+	}
 }
 
 func assertVersionParts(t *testing.T, i *image, p *versionParts) {

@@ -78,16 +78,16 @@ func (i *image) getNormalizedName() string {
 	return i.Name
 }
 
-func (i *image) getLatestVersion(reg registry, mode updateMode) (*image, error) {
+func (i *image) GetLatestVersion(reg registry, mode updateMode) (*image, error) {
 	imageName := i.getNormalizedName()
 	imageVerisons, err := reg.GetImageVersions(imageName)
 	if err != nil {
 		return nil, err
 	}
 	var imgVersions []*image
-	i.SetVersionMatcher(mode)
+	i.setVersionMatcher(mode)
 	for _, version := range imageVerisons {
-		if i.MatchesScheme(version) {
+		if i.matchesScheme(version) {
 			img, err := newImageFromComponents(i.Name, version)
 			if err != nil {
 				return nil, err
@@ -168,9 +168,9 @@ func (i *image) IsSamePatch(comp *image) bool {
 	return i.IsSameMinor(comp) && i.Patch == comp.Patch
 }
 
-func (i *image) MatchesScheme(str string) bool {
+func (i *image) matchesScheme(str string) bool {
 	if i.matcherFunc == nil {
-		i.SetVersionMatcher(updateMajor)
+		i.setVersionMatcher(updateMajor)
 	}
 	return !i.tagFilter[str] && i.matcherFunc(str)
 }
@@ -182,7 +182,7 @@ var reV3DigitsSuffix = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+.*$`)
 var reV2DigitsSuffix = regexp.MustCompile(`^v[0-9]+\.[0-9]+.*$`)
 var reV1DigitsSuffix = regexp.MustCompile(`^v[0-9]+.*$`)
 
-func (i *image) SetVersionMatcher(mode updateMode) {
+func (i *image) setVersionMatcher(mode updateMode) {
 	major := strconv.Itoa(i.Major)
 	minor := strconv.Itoa(i.Minor)
 	matchVersion := ""

@@ -458,6 +458,221 @@ func TestGetLatestVersion(t *testing.T) {
 	}
 }
 
+func TestMatchesScheme_TagFilter(t *testing.T) {
+	i := &image{
+		tagFilter: map[string]bool{
+			"latest": true,
+		},
+	}
+	expected := false
+	actual := i.matchesScheme("latest")
+	if expected != actual {
+		t.Errorf("expected '%v', got '%v'", expected, actual)
+	}
+}
+
+func TestMatchesScheme_MatcherFuncIsSet(t *testing.T) {
+	i := &image{}
+	i.matchesScheme("")
+	if i.matcherFunc == nil {
+		t.Error("expected matcherFunc not to be nil")
+	}
+}
+
+func TestMatcherFunc(t *testing.T) {
+	tests := []struct {
+		name         string
+		imageVersion string
+		matchVersion string
+		updateMode   updateMode
+		expected     bool
+	}{
+		{
+			"mode updateMajor with version which does match",
+			"1.0.0",
+			"2.0.0",
+			updateMajor,
+			true,
+		},
+		{
+			"mode updateMajor with match all fallback",
+			"nomatcher", // falls through till match all fallback
+			"1.0.0",
+			updateMajor,
+			true,
+		},
+		{
+			"mode updateMajor with version which does not match suffix",
+			"1.0.0-suffix",
+			"2.0.0-suffix",
+			updateMajor,
+			true,
+		},
+		{
+			"mode updateMajor with version suffix which does not match suffix",
+			"1.0.0-suffix",
+			"2.0.0-nomatch",
+			updateMajor,
+			false,
+		},
+		{
+			"mode updateMajor with version suffix which does not match",
+			"1.0.0-suffix",
+			"2.0.0",
+			updateMajor,
+			false,
+		},
+		{
+			"mode updateMajor with version which does not match suffix",
+			"1.0.0",
+			"2.0.0-suffix",
+			updateMajor,
+			false,
+		},
+		{
+			"mode updateMajor with version which does match prefix",
+			"v1.0.0",
+			"v2.0.0",
+			updateMajor,
+			true,
+		},
+		{
+			"mode updateMajor with version prefix which does not match",
+			"v1.0.0",
+			"2.0.0",
+			updateMajor,
+			false,
+		},
+		{
+			"mode updateMajor with version which does not match prefix",
+			"1.0.0",
+			"v2.0.0",
+			updateMajor,
+			false,
+		},
+		{
+			"mode updateMinor with version which does match",
+			"1.1.0",
+			"1.2.0",
+			updateMinor,
+			true,
+		},
+		{
+			"mode updateMinor with version which does not match",
+			"1.1.0",
+			"2.2.0",
+			updateMinor,
+			false,
+		},
+		{
+			"mode updateMinor with version which does match suffix",
+			"1.1.0-suffix",
+			"1.2.0-suffix",
+			updateMinor,
+			true,
+		},
+		{
+			"mode updateMinor with version suffix which does not match",
+			"1.1.0-suffix",
+			"1.1.1",
+			updateMinor,
+			false,
+		},
+		{
+			"mode updateMinor with version which does not match suffix",
+			"1.1.0",
+			"1.2.0-suffix",
+			updateMinor,
+			false,
+		},
+		{
+			"mode updateMinor with version which does match prefix",
+			"v1.1.0",
+			"v1.2.0",
+			updateMinor,
+			true,
+		},
+		{
+			"mode updateMinor with version prefix which does not match",
+			"v1.1.0",
+			"1.2.0",
+			updateMinor,
+			false,
+		},
+		{
+			"mode updateMinor with version which does not match prefix",
+			"1.1.0",
+			"v1.2.0",
+			updateMinor,
+			false,
+		},
+		{
+			"mode updatePatch with version which does match",
+			"1.1.0",
+			"1.1.1",
+			updatePatch,
+			true,
+		},
+		{
+			"mode updatePatch with version which does match suffix",
+			"1.1.0-suffix",
+			"1.1.1-suffix",
+			updatePatch,
+			true,
+		},
+		{
+			"mode updatePatch with version suffix which does not match",
+			"1.1.0-suffix",
+			"1.1.1",
+			updatePatch,
+			false,
+		},
+		{
+			"mode updatePatch with version which does not match suffix",
+			"1.1.0",
+			"1.1.1-suffix",
+			updatePatch,
+			false,
+		},
+		{
+			"mode updatePatch with version which does match prefix",
+			"v1.1.0",
+			"v1.1.1",
+			updatePatch,
+			true,
+		},
+		{
+			"mode updatePatch with version prefix which does not match",
+			"v1.1.0",
+			"1.1.1",
+			updatePatch,
+			false,
+		},
+		{
+			"mode updatePatch with version which does not match prefix",
+			"1.1.0",
+			"v1.1.1",
+			updatePatch,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i, err := newImageFromComponents("some/image", tt.imageVersion)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			i.setVersionMatcher(tt.updateMode)
+			// actual test
+			actual := i.matcherFunc(tt.matchVersion)
+			if tt.expected != actual {
+				t.Errorf("expected matcherFunc for '%v' with mode '%v' to return '%v' when given '%v', but got '%v'",
+					tt.imageVersion, tt.updateMode, tt.expected, tt.matchVersion, actual)
+			}
+		})
+	}
+}
+
 func expectVersion(t *testing.T, latestImg *image, err error, expected string) {
 	if err != nil {
 		t.Fatalf("expected no error, got '%v'", err)

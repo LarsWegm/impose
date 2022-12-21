@@ -32,6 +32,14 @@ type registry interface {
 	GetImageVersions(imageName string) ([]string, error)
 }
 
+func (m updateMode) String() string {
+	return [...]string{
+		"updateMajor",
+		"updateMinor",
+		"updatePatch",
+	}[m]
+}
+
 func newImageFromString(str string) (*image, error) {
 	name, version, _ := strings.Cut(str, ":")
 	return newImageFromComponents(name, version)

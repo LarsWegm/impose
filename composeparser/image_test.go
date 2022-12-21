@@ -335,10 +335,12 @@ func TestGetLatestVersion(t *testing.T) {
 			"some/image:1.0.0",
 			updateMajor,
 			[]string{
+				"1.0.0",
+				"3.0.0",
 				"2.0.0",
 			},
 			func(t *testing.T, latestImg *image, err error) {
-				expectVersion(t, latestImg, err, "some/image:2.0.0")
+				expectVersion(t, latestImg, err, "some/image:3.0.0")
 			},
 		},
 		{
@@ -347,20 +349,24 @@ func TestGetLatestVersion(t *testing.T) {
 			updateMinor,
 			[]string{
 				"1.1.0",
+				"1.3.0",
+				"1.2.0",
 			},
 			func(t *testing.T, latestImg *image, err error) {
-				expectVersion(t, latestImg, err, "some/image:1.1.0")
+				expectVersion(t, latestImg, err, "some/image:1.3.0")
 			},
 		},
 		{
-			"mode updateMajor with matching version",
+			"mode updatePatch with matching version",
 			"some/image:1.0.0",
 			updatePatch,
 			[]string{
 				"1.0.1",
+				"1.0.3",
+				"1.0.2",
 			},
 			func(t *testing.T, latestImg *image, err error) {
-				expectVersion(t, latestImg, err, "some/image:1.0.1")
+				expectVersion(t, latestImg, err, "some/image:1.0.3")
 			},
 		},
 		{
@@ -389,6 +395,50 @@ func TestGetLatestVersion(t *testing.T) {
 				"2.0.0",
 			},
 			expectError,
+		},
+		{
+			"mode updateMajor with no matching suffix",
+			"some/image:1.0.0-suffix",
+			updateMajor,
+			[]string{
+				"2.0.0-nomatch",
+			},
+			expectError,
+		},
+		{
+			"mode updateMajor with matching suffix",
+			"some/image:1.0.0-suffix",
+			updateMajor,
+			[]string{
+				"1.0.0-suffix",
+				"3.0.0-suffix",
+				"2.0.0-suffix",
+			},
+			func(t *testing.T, latestImg *image, err error) {
+				expectVersion(t, latestImg, err, "some/image:3.0.0-suffix")
+			},
+		},
+		{
+			"mode updateMajor with no matching prefix",
+			"some/image:v1.0.0",
+			updateMajor,
+			[]string{
+				"2.0.0",
+			},
+			expectError,
+		},
+		{
+			"mode updateMajor with matching prefix",
+			"some/image:v1.0.0",
+			updateMajor,
+			[]string{
+				"v1.0.0",
+				"v3.0.0",
+				"v2.0.0",
+			},
+			func(t *testing.T, latestImg *image, err error) {
+				expectVersion(t, latestImg, err, "some/image:v3.0.0")
+			},
 		},
 	}
 	reg := &registryMock{}

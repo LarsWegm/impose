@@ -673,6 +673,335 @@ func TestMatcherFunc(t *testing.T) {
 	}
 }
 
+func TestGetLatestVersion_EmptyStruct(t *testing.T) {
+	reg := &registryMock{}
+	i := &image{}
+	_, err := i.GetLatestVersion(reg, updateMajor)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+}
+
+func TestCompare(t *testing.T) {
+	tests := []struct {
+		name         string
+		imageStr     string
+		compImageStr string
+		expected     bool
+	}{
+		{
+			"same image and version",
+			"some/image:1.0.0",
+			"some/image:1.0.0",
+			true,
+		},
+		{
+			"different images",
+			"some/image:1.0.0",
+			"some/other:1.0.0",
+			false,
+		},
+		{
+			"different major versions",
+			"some/image:1.0.0",
+			"some/image:2.0.0",
+			false,
+		},
+		{
+			"different minor versions",
+			"some/image:1.0.0",
+			"some/image:1.1.0",
+			false,
+		},
+		{
+			"different patch versions",
+			"some/image:1.0.0",
+			"some/image:1.0.1",
+			false,
+		},
+		{
+			"different suffix",
+			"some/image:1.0.0",
+			"some/image:1.0.0-suffix",
+			false,
+		},
+		{
+			"official images, one without library prefix",
+			"library/image:1.0.0",
+			"image:1.0.0",
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i, err := newImageFromString(tt.imageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			comp, err := newImageFromString(tt.compImageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			// actual test
+			actual := i.Compare(comp)
+			if tt.expected != actual {
+				t.Errorf("expected Compare for '%v' with '%v' to return '%v', but got '%v'",
+					i, comp, tt.expected, actual)
+			}
+		})
+	}
+}
+
+func TestIsSameVersion(t *testing.T) {
+	tests := []struct {
+		name         string
+		imageStr     string
+		compImageStr string
+		expected     bool
+	}{
+		{
+			"different images, same version",
+			"some/image:1.0.0",
+			"some/other:1.0.0",
+			true,
+		},
+		{
+			"same images, different version",
+			"some/image:1.0.0",
+			"some/image:2.0.0",
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i, err := newImageFromString(tt.imageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			comp, err := newImageFromString(tt.compImageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			// actual test
+			actual := i.IsSameVersion(comp)
+			if tt.expected != actual {
+				t.Errorf("expected IsSameVersion for '%v' with '%v' to return '%v', but got '%v'",
+					i, comp, tt.expected, actual)
+			}
+		})
+	}
+}
+
+func TestIsSameMajor(t *testing.T) {
+	tests := []struct {
+		name         string
+		imageStr     string
+		compImageStr string
+		expected     bool
+	}{
+		{
+			"same major version",
+			"some/image:1.0.0",
+			"some/image:1.0.0",
+			true,
+		},
+		{
+			"same major version with suffix",
+			"some/image:1.0.0-suffix",
+			"some/image:1.0.0-suffix",
+			true,
+		},
+		{
+			"same major version with different suffix",
+			"some/image:1.0.0-suffix",
+			"some/image:1.0.0-other",
+			true,
+		},
+		{
+			"same major version with prefix",
+			"some/image:v1.0.0",
+			"some/image:v1.0.0",
+			true,
+		},
+		{
+			"different major version",
+			"some/image:1.0.0",
+			"some/image:2.0.0",
+			false,
+		},
+		{
+			"different minor version",
+			"some/image:1.0.0",
+			"some/image:1.1.0",
+			true,
+		},
+		{
+			"different patch version",
+			"some/image:1.0.0",
+			"some/image:1.0.1",
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i, err := newImageFromString(tt.imageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			comp, err := newImageFromString(tt.compImageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			// actual test
+			actual := i.IsSameMajor(comp)
+			if tt.expected != actual {
+				t.Errorf("expected IsSameMajor for '%v' with '%v' to return '%v', but got '%v'",
+					i, comp, tt.expected, actual)
+			}
+		})
+	}
+}
+
+func TestIsSameMinor(t *testing.T) {
+	tests := []struct {
+		name         string
+		imageStr     string
+		compImageStr string
+		expected     bool
+	}{
+		{
+			"same minor version",
+			"some/image:1.1.0",
+			"some/image:1.1.0",
+			true,
+		},
+		{
+			"same minor version with suffix",
+			"some/image:1.1.0-suffix",
+			"some/image:1.1.0-suffix",
+			true,
+		},
+		{
+			"same minor version with different suffix",
+			"some/image:1.1.0-suffix",
+			"some/image:1.1.0-other",
+			true,
+		},
+		{
+			"same minor version with prefix",
+			"some/image:v1.1.0",
+			"some/image:v1.1.0",
+			true,
+		},
+		{
+			"different major version",
+			"some/image:1.1.0",
+			"some/image:2.1.0",
+			false,
+		},
+		{
+			"different minor version",
+			"some/image:1.1.0",
+			"some/image:1.2.0",
+			false,
+		},
+		{
+			"different patch version",
+			"some/image:1.1.0",
+			"some/image:1.1.1",
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i, err := newImageFromString(tt.imageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			comp, err := newImageFromString(tt.compImageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			// actual test
+			actual := i.IsSameMinor(comp)
+			if tt.expected != actual {
+				t.Errorf("expected IsSameMinor for '%v' with '%v' to return '%v', but got '%v'",
+					i, comp, tt.expected, actual)
+			}
+		})
+	}
+}
+
+func TestIsSamePatch(t *testing.T) {
+	tests := []struct {
+		name         string
+		imageStr     string
+		compImageStr string
+		expected     bool
+	}{
+		{
+			"same patch version",
+			"some/image:1.0.1",
+			"some/image:1.0.1",
+			true,
+		},
+		{
+			"same patch version with suffix",
+			"some/image:1.0.1-suffix",
+			"some/image:1.0.1-suffix",
+			true,
+		},
+		{
+			"same patch version with different suffix",
+			"some/image:1.0.1-suffix",
+			"some/image:1.0.1-other",
+			true,
+		},
+		{
+			"same patch version with prefix",
+			"some/image:v1.0.1",
+			"some/image:v1.0.1",
+			true,
+		},
+		{
+			"different patch version",
+			"some/image:1.0.1",
+			"some/image:1.0.2",
+			false,
+		},
+		{
+			"different major version",
+			"some/image:1.0.1",
+			"some/image:2.0.1",
+			false,
+		},
+		{
+			"different minor version",
+			"some/image:1.1.1",
+			"some/image:1.2.1",
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i, err := newImageFromString(tt.imageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			comp, err := newImageFromString(tt.compImageStr)
+			if err != nil {
+				t.Fatalf("expected no error, got '%v'", err)
+			}
+			// actual test
+			actual := i.IsSamePatch(comp)
+			if tt.expected != actual {
+				t.Errorf("expected IsSamePatch for '%v' with '%v' to return '%v', but got '%v'",
+					i, comp, tt.expected, actual)
+			}
+		})
+	}
+}
+
 func expectVersion(t *testing.T, latestImg *image, err error, expected string) {
 	if err != nil {
 		t.Fatalf("expected no error, got '%v'", err)
@@ -689,15 +1018,6 @@ func expectVersion(t *testing.T, latestImg *image, err error, expected string) {
 func expectError(t *testing.T, latestImg *image, err error) {
 	if err == nil {
 		t.Fatalf("expected error")
-	}
-}
-
-func TestGetLatestVersion_EmptyStruct(t *testing.T) {
-	reg := &registryMock{}
-	i := &image{}
-	_, err := i.GetLatestVersion(reg, updateMajor)
-	if err == nil {
-		t.Errorf("expected error")
 	}
 }
 

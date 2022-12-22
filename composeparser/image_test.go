@@ -1002,6 +1002,48 @@ func TestIsSamePatch(t *testing.T) {
 	}
 }
 
+func TestLess_Nil(t *testing.T) {
+	i := &image{}
+	if i.Less(nil) {
+		t.Error("expected 'false', got 'true'")
+	}
+}
+
+func TestCompare_Nil(t *testing.T) {
+	i := &image{}
+	if i.Compare(nil) {
+		t.Error("expected 'false', got 'true'")
+	}
+}
+
+func TestIsSameVersion_Nil(t *testing.T) {
+	i := &image{}
+	if i.IsSameVersion(nil) {
+		t.Error("expected 'false', got 'true'")
+	}
+}
+
+func TestIsSameMajor_Nil(t *testing.T) {
+	i := &image{}
+	if i.IsSameMajor(nil) {
+		t.Error("expected 'false', got 'true'")
+	}
+}
+
+func TestIsSameMinor_Nil(t *testing.T) {
+	i := &image{}
+	if i.IsSameMinor(nil) {
+		t.Error("expected 'false', got 'true'")
+	}
+}
+
+func TestIsSamePatch_Nil(t *testing.T) {
+	i := &image{}
+	if i.IsSamePatch(nil) {
+		t.Error("expected 'false', got 'true'")
+	}
+}
+
 func expectVersion(t *testing.T, latestImg *image, err error, expected string) {
 	if err != nil {
 		t.Fatalf("expected no error, got '%v'", err)

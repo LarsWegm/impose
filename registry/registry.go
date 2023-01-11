@@ -16,9 +16,12 @@ type Config struct {
 
 type Registry struct {
 	registry   string
-	client     *http.Client
+	client     httpClient
 	httpHeader http.Header
-	filterTags map[string]bool
+}
+
+type httpClient interface {
+	Do(req *http.Request) (*http.Response, error)
 }
 
 type tagResponse struct {
@@ -32,9 +35,6 @@ func NewRegistry(cfg *Config) *Registry {
 		registry:   "https://hub.docker.com",
 		client:     &http.Client{},
 		httpHeader: http.Header{},
-		filterTags: map[string]bool{
-			"latest": true,
-		},
 	}
 	if cfg.Registry != "" {
 		reg.registry = cfg.Registry
@@ -77,7 +77,7 @@ func (r *Registry) GetImageVersions(imageName string) ([]string, error) {
 	}
 
 	if len(imgVersions) < 1 {
-		return nil, fmt.Errorf("could not find a image versions for '%v'", imageName)
+		return nil, fmt.Errorf("could not find image versions for '%v'", imageName)
 	}
 
 	return imgVersions, nil

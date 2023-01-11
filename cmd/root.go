@@ -44,9 +44,6 @@ The following annotations are available:
   impose:warnMinor  warns if minor version has changed (including major version changes)
   impose:warnPatch  warns if patch version has changed (including major and minor version changes)
   impose:warnAll    warns if the version string has changed in any way (including version suffix)`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
 }
 
 type CliOptions struct {
@@ -72,15 +69,6 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.impose.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	opts = &CliOptions{}
 	rootCmd.PersistentFlags().StringVarP(&opts.InputFile, "file", "f", "docker-compose.yml", "Compose file")
 	rootCmd.PersistentFlags().StringVarP(&opts.OutputFile, "out", "o", "", "The output file (default is the input file, if \"-\" is passed it writes to std out)")

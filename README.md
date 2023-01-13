@@ -13,6 +13,10 @@ Using the `latest` tag for production Docker services is not recommended (see e.
 
 The tool checks your `docker-compose.yml` and updates all Docker images to the latest tag. You can even choose if you want to update based on major, minor or patch versions. The tool can also warn you on specific version changes or ignore some services at all.
 
+## Installation
+
+If you have go >= 1.18 installed, simply clone the project and run `go install`.
+
 ## Quick Start
 
 It's really simple. Go to the directory of your `docker-compose.yml` file and run `impose update` (attention, this will overwrite your current `docker-compose.yml`).

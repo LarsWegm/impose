@@ -5,12 +5,12 @@ import (
 )
 
 type registryMock struct {
-	getImageVersionsFn func(imageName string) ([]string, error)
+	getImageVersionsFn func(imageName string, stopByTag string) ([]string, error)
 }
 
-func (r *registryMock) GetImageVersions(imageName string) ([]string, error) {
+func (r *registryMock) GetImageVersions(imageName string, stopByTag string) ([]string, error) {
 	if r != nil && r.getImageVersionsFn != nil {
-		return r.getImageVersionsFn(imageName)
+		return r.getImageVersionsFn(imageName, stopByTag)
 	}
 	return []string{"1.0.0"}, nil
 }
@@ -448,7 +448,7 @@ func TestGetLatestVersion(t *testing.T) {
 			if err != nil {
 				t.Fatalf("expected no error, got '%v'", err)
 			}
-			reg.getImageVersionsFn = func(imageName string) ([]string, error) {
+			reg.getImageVersionsFn = func(imageName string, stopByTag string) ([]string, error) {
 				return tt.regVersions, nil
 			}
 			// actual test

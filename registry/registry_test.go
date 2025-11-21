@@ -2,6 +2,7 @@ package registry
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -21,7 +22,7 @@ func (c *httpClientMock) Do(req *http.Request) (*http.Response, error) {
 		StatusCode: http.StatusOK,
 		Body: io.NopCloser(strings.NewReader(`{
 	"count": 25,
-	"next": "https://examplecom/v2/repositories/some/image/tags?page=2",
+	"next": null,
 	"previous": null,
 	"results": [
 		{
@@ -63,7 +64,7 @@ func (c *httpClientMock) Do(req *http.Request) (*http.Response, error) {
 func TestGetImageVersions_latest(t *testing.T) {
 	r := NewRegistry(&Config{})
 	r.client = &httpClientMock{}
-	actual, err := r.GetImageVersions("some/image")
+	actual, err := r.GetImageVersions("some/image", "")
 	if err != nil {
 		t.Fatal("expected no error")
 	}
@@ -82,6 +83,7 @@ func TestGetImageVersions_multipleVersions(t *testing.T) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body: io.NopCloser(strings.NewReader(`{
+	"next": null,
 	"results": [
 		{
 			"name": "1.0.0"
@@ -97,7 +99,7 @@ func TestGetImageVersions_multipleVersions(t *testing.T) {
 			}, nil
 		},
 	}
-	actual, err := r.GetImageVersions("some/image")
+	actual, err := r.GetImageVersions("some/image", "")
 	if err != nil {
 		t.Fatal("expected no error")
 	}
@@ -121,7 +123,7 @@ func TestGetImageVersions_httpError(t *testing.T) {
 			}, nil
 		},
 	}
-	_, err := r.GetImageVersions("some/image")
+	_, err := r.GetImageVersions("some/image", "")
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
@@ -137,7 +139,7 @@ func TestGetImageVersions_invalidResponse(t *testing.T) {
 			}, nil
 		},
 	}
-	_, err := r.GetImageVersions("some/image")
+	_, err := r.GetImageVersions("some/image", "")
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
@@ -150,7 +152,7 @@ func TestGetImageVersions_httpClientError(t *testing.T) {
 			return nil, errors.New("some error")
 		},
 	}
-	_, err := r.GetImageVersions("some/image")
+	_, err := r.GetImageVersions("some/image", "")
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
@@ -168,8 +170,137 @@ func TestGetImageVersions_noVersionsFound(t *testing.T) {
 			}, nil
 		},
 	}
-	_, err := r.GetImageVersions("some/image")
+	_, err := r.GetImageVersions("some/image", "")
 	if err == nil {
 		t.Error("expected error, got nil")
+	}
+}
+
+func TestGetImageVersions_multiplePages(t *testing.T) {
+	r := NewRegistry(&Config{})
+	called := 0
+	r.client = &httpClientMock{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			called++
+			body := `{
+	"next": "https://example.com/v2/repositories/some/image/tags?page=2",
+	"results": [
+		{
+			"name": "1.0.0"
+		}
+	]
+}`
+			if called > 1 {
+				body = `{
+	"next": null,
+	"results": [
+		{
+			"name": "1.1.0"
+		}
+	]
+}`
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		},
+	}
+	_, err := r.GetImageVersions("some/image", "")
+	if err != nil {
+		t.Fatal("expected no error")
+	}
+	if called != 2 {
+		t.Errorf("expected http client to to be called 2 times, got %v", called)
+	}
+}
+
+func TestGetImageVersions_noNextResponse(t *testing.T) {
+	r := NewRegistry(&Config{})
+	r.client = &httpClientMock{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body: io.NopCloser(strings.NewReader(`{
+	"results": [
+		{
+			"name": "1.0.0"
+		}
+	]
+}`)),
+			}, nil
+		},
+	}
+	_, err := r.GetImageVersions("some/image", "")
+	if err != nil {
+		t.Error("expected no error")
+	}
+}
+
+func TestGetImageVersions_stopAtStopTag(t *testing.T) {
+	r := NewRegistry(&Config{})
+	called := 0
+	r.client = &httpClientMock{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			called++
+			body := `{
+	"next": "https://example.com/v2/repositories/some/image/tags?page=2",
+	"results": [
+		{
+			"name": "1.0.0"
+		}
+	]
+}`
+			if called > 1 {
+				body = `{
+	"next": "https://example.com/v2/repositories/some/image/tags?page=3",
+	"results": [
+		{
+			"name": "1.1.0"
+		}
+	]
+}`
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		},
+	}
+	_, err := r.GetImageVersions("some/image", "1.1.0")
+	if err != nil {
+		t.Fatal("expected no error")
+	}
+	if called != 2 {
+		t.Errorf("expected http client to to be called 2 times, got %v", called)
+	}
+}
+
+func TestGetImageVersions_maxPagesLimit(t *testing.T) {
+	r := NewRegistry(&Config{})
+	called := 0
+	r.client = &httpClientMock{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			called++
+			body := fmt.Sprintf(`{
+	"next": "https://example.com/v2/repositories/some/image/tags?page=%d",
+	"results": [
+		{
+			"name": "1.0.0"
+		}
+	]
+}`, called+1)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		},
+	}
+	_, err := r.GetImageVersions("some/image", "")
+	if err == nil {
+		t.Error("expected error, got nil")
+	}
+	if called != 1000 {
+		t.Errorf("expected max page limit of 1000, got %d", called)
 	}
 }

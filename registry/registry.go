@@ -25,6 +25,7 @@ type httpClient interface {
 }
 
 type tagResponse struct {
+	Next    string `json:"next"`
 	Results []struct {
 		Name string `json:"name"`
 	} `json:"results"`
@@ -47,8 +48,41 @@ func NewRegistry(cfg *Config) *Registry {
 	return reg
 }
 
-func (r *Registry) GetImageVersions(imageName string) ([]string, error) {
-	req, err := http.NewRequest("GET", r.registry+"/v2/repositories/"+imageName+"/tags/?ordering=last_updated&page=1&page_size=100", nil) // 100 is the max page_size
+func (r *Registry) GetImageVersions(imageName string, stopByTag string) ([]string, error) {
+	var imgVersions []string
+	url := r.registry + "/v2/repositories/" + imageName + "/tags/?ordering=last_updated&page=1&page_size=100" // 100 is the max page_size
+	const maxPages = 1000
+	for i := 0; ; i++ {
+		if i >= maxPages {
+			return nil, fmt.Errorf("reached max pages limit (%d)", maxPages)
+		}
+		stopTagFound := false
+		tagRes, err := r.retrieveTags(url)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range tagRes.Results {
+			imgVersions = append(imgVersions, t.Name)
+			if t.Name == stopByTag {
+				stopTagFound = true
+			}
+		}
+		if tagRes.Next != "" && !stopTagFound {
+			url = tagRes.Next
+		} else {
+			break
+		}
+	}
+
+	if len(imgVersions) < 1 {
+		return nil, fmt.Errorf("could not find image versions for '%v'", imageName)
+	}
+
+	return imgVersions, nil
+}
+
+func (r *Registry) retrieveTags(url string) (*tagResponse, error) {
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +92,7 @@ func (r *Registry) GetImageVersions(imageName string) ([]string, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("registry http error for '%v': %v", imageName, resp.Status)
+		return nil, fmt.Errorf("http error '%v' for '%v'", resp.Status, url)
 	}
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -71,14 +105,5 @@ func (r *Registry) GetImageVersions(imageName string) ([]string, error) {
 		return nil, err
 	}
 
-	var imgVersions []string
-	for _, t := range tagRes.Results {
-		imgVersions = append(imgVersions, t.Name)
-	}
-
-	if len(imgVersions) < 1 {
-		return nil, fmt.Errorf("could not find image versions for '%v'", imageName)
-	}
-
-	return imgVersions, nil
+	return &tagRes, nil
 }

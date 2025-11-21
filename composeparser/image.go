@@ -29,7 +29,7 @@ const (
 )
 
 type registry interface {
-	GetImageVersions(imageName string) ([]string, error)
+	GetImageVersions(imageName string, stopByTag string) ([]string, error)
 }
 
 func (m updateMode) String() string {
@@ -88,7 +88,7 @@ func (i *image) getNormalizedName() string {
 
 func (i *image) GetLatestVersion(reg registry, mode updateMode) (*image, error) {
 	imageName := i.getNormalizedName()
-	imageVerisons, err := reg.GetImageVersions(imageName)
+	imageVerisons, err := reg.GetImageVersions(imageName, i.VersionStr)
 	if err != nil {
 		return nil, err
 	}
